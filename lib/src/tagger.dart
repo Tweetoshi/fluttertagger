@@ -59,6 +59,7 @@ class FlutterTagger extends StatefulWidget {
     this.triggerCharacterAndStyles = const {},
     this.onFormattedTextChanged,
     this.searchRegex,
+    required this.tagStyle,
     this.triggerCharactersRegex,
     this.tagTextFormatter,
     this.animationController,
@@ -129,11 +130,7 @@ class FlutterTagger extends StatefulWidget {
   ///trigger character.
   final Map<String, TextStyle> triggerCharacterAndStyles;
 
-  final TextStyle tagStyle = const TextStyle(
-    color: Colors.blue,
-    decoration: TextDecoration.underline,
-  );
-
+  final TextStyle tagStyle;
   @override
   State<FlutterTagger> createState() => _FlutterTaggerState();
 }
