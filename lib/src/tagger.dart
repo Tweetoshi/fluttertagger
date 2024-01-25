@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertagger/src/regex.dart';
 import 'package:fluttertagger/src/tagged_text.dart';
 import 'package:fluttertagger/src/trie.dart';
 
@@ -7,6 +8,16 @@ typedef FlutterTaggerWidgetBuilder = Widget Function(
   BuildContext context,
   GlobalKey key,
 );
+
+class _TextPart {
+  _TextPart(
+    this.content, {
+    this.isRegexMatch = false,
+  });
+
+  String content;
+  bool isRegexMatch;
+}
 
 ///Formatter for tags in the [TextField] associated
 ///with [FlutterTagger].
@@ -117,6 +128,11 @@ class FlutterTagger extends StatefulWidget {
   ///These styles are applied to the tags/mentions resulting from their associated
   ///trigger character.
   final Map<String, TextStyle> triggerCharacterAndStyles;
+
+  final TextStyle tagStyle = const TextStyle(
+    color: Colors.blue,
+    decoration: TextDecoration.underline,
+  );
 
   @override
   State<FlutterTagger> createState() => _FlutterTaggerState();
@@ -797,7 +813,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
     controller._setDeferCallback(() => _defer = true);
     controller._setTags(_tags);
     controller._setTriggerCharactersRegExpPattern(_triggerCharactersPattern);
-    controller._setTagStyles(widget.triggerCharacterAndStyles);
+    controller._setTagStyle(widget.tagStyle);
     controller.addListener(_tagListener);
     controller._onClear(() {
       _tags.clear();
@@ -837,10 +853,10 @@ class FlutterTaggerController extends TextEditingController {
 
   Map<TaggedText, String> get tags => _tags;
 
-  late Map<String, TextStyle> _tagStyles;
+  late TextStyle _tagStyle;
 
-  void _setTagStyles(Map<String, TextStyle> tagStyles) {
-    _tagStyles = tagStyles;
+  void _setTagStyle(TextStyle tagStyle) {
+    _tagStyle = tagStyle;
   }
 
   RegExp? _triggerCharsPattern;
@@ -1006,18 +1022,98 @@ class FlutterTaggerController extends TextEditingController {
     _addTagCallback = callback;
   }
 
+  
+
+ List<_TextPart> _splitTextByRegexList(List<RegExp> regexList, String input) {
+    final result = <_TextPart>[];
+    var previousMatchEnd = 0;
+
+    // Create a list to keep track of all matches across regex patterns
+    final allMatches = <Match>[];
+
+    for (final regex in regexList) {
+      allMatches.addAll(regex.allMatches(input).toList());
+    }
+
+    // Sort allMatches based on the start index
+    allMatches.sort((a, b) => a.start.compareTo(b.start));
+
+    for (final match in allMatches) {
+      // Check if this match overlaps with a previous match
+      if (match.start < previousMatchEnd) {
+        // If it does, ignore this match
+        continue;
+      }
+
+      // Add the non-matched text before the match
+      if (match.start > previousMatchEnd) {
+        final nonMatchedText = input.substring(previousMatchEnd, match.start);
+        result.add(
+          _TextPart(
+            nonMatchedText,
+          ),
+        );
+      }
+
+      // Add the matched text
+      final matchedText = match.group(0)!;
+      result.add(_TextPart(matchedText, isRegexMatch: true));
+
+      previousMatchEnd = match.end;
+    }
+
+    // Add the rest of the non-matched text after the last match, if any
+    if (previousMatchEnd < input.length) {
+      final nonMatchedText = input.substring(previousMatchEnd);
+      result.add(
+        _TextPart(
+          nonMatchedText,
+        ),
+      );
+    }
+
+    return result;
+  }
+
   @override
   TextSpan buildTextSpan({
-    required BuildContext context,
+    BuildContext? context,
     TextStyle? style,
-    required bool withComposing,
+    bool? withComposing,
   }) {
-    assert(!value.composing.isValid ||
-        !withComposing ||
-        value.isComposingRangeValid);
+    final split = _splitTextByRegexList(
+      listOfWritingRegex,
+      text,
+    );
 
-    return _buildTextSpan(style);
+    return TextSpan(
+      children: split.map(
+        (e) {
+          return TextSpan(
+            text: e.content,
+            style: e.isRegexMatch
+                ? _tagStyle
+                : style,
+          );
+        },
+      ).toList(),
+      style: style,
+    );
   }
+
+
+  // @override
+  // TextSpan buildTextSpan({
+  //   required BuildContext context,
+  //   TextStyle? style,
+  //   required bool withComposing,
+  // }) {
+  //   assert(!value.composing.isValid ||
+  //       !withComposing ||
+  //       value.isComposingRangeValid);
+
+  //   return _buildTextSpan(style);
+  // }
 
   ///Parses [text] and styles nested tagged texts using style from [_tagStyles].
   List<TextSpan> _getNestedSpans(String text, int startIndex) {
@@ -1070,7 +1166,7 @@ class FlutterTaggerController extends TextEditingController {
         spans.add(
           TextSpan(
             text: taggedText.text,
-            style: _tagStyles[triggerChar],
+            style: _tagStyle
           ),
         );
         if (suffix.isNotEmpty) spans.add(TextSpan(text: suffix));
@@ -1086,37 +1182,37 @@ class FlutterTaggerController extends TextEditingController {
   }
 
   ///Builds text value with tagged texts styled using styles from [_tagStyles].
-  TextSpan _buildTextSpan(TextStyle? style) {
-    if (text.isEmpty) return const TextSpan();
+  // TextSpan _buildTextSpan(TextStyle? style) {
+  //   if (text.isEmpty) return const TextSpan();
 
-    final splitText = text.split(" ");
+  //   final splitText = text.split(" ");
 
-    List<TextSpan> spans = [];
-    int start = 0;
-    int end = splitText.first.length;
+  //   List<TextSpan> spans = [];
+  //   int start = 0;
+  //   int end = splitText.first.length;
 
-    for (int i = 0; i < splitText.length; i++) {
-      final currentText = splitText[i];
+  //   for (int i = 0; i < splitText.length; i++) {
+  //     final currentText = splitText[i];
 
-      if (currentText.contains(_triggerCharactersPattern)) {
-        final nestedSpans = _getNestedSpans(currentText, start);
-        spans.addAll(nestedSpans);
-        spans.add(const TextSpan(text: " "));
+  //     if (currentText.contains(_triggerCharactersPattern)) {
+  //       final nestedSpans = _getNestedSpans(currentText, start);
+  //       spans.addAll(nestedSpans);
+  //       spans.add(const TextSpan(text: " "));
 
-        start = end + 1;
-        if (i + 1 < splitText.length) {
-          end = start + splitText[i + 1].length;
-        }
-      } else {
-        start = end + 1;
-        if (i + 1 < splitText.length) {
-          end = start + splitText[i + 1].length;
-        }
-        spans.add(TextSpan(text: "$currentText "));
-      }
-    }
-    return TextSpan(children: spans, style: style);
-  }
+  //       start = end + 1;
+  //       if (i + 1 < splitText.length) {
+  //         end = start + splitText[i + 1].length;
+  //       }
+  //     } else {
+  //       start = end + 1;
+  //       if (i + 1 < splitText.length) {
+  //         end = start + splitText[i + 1].length;
+  //       }
+  //       spans.add(TextSpan(text: "$currentText "));
+  //     }
+  //   }
+  //   return TextSpan(children: spans, style: style);
+  // }
 }
 
 extension _RegExpExtension on RegExp {
