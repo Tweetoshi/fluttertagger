@@ -802,6 +802,7 @@ class _FlutterTaggerState extends State<FlutterTagger> {
       debugPrint(trace.toString());
     }
   }
+  
 
   @override
   void initState() {
@@ -813,8 +814,9 @@ class _FlutterTaggerState extends State<FlutterTagger> {
     controller._setTagStyle(widget.tagStyle);
     controller.addListener(_tagListener);
     controller._onClear(() {
+      if(controller.text.isEmpty){
       _tags.clear();
-      _tagTrie.clear();
+      _tagTrie.clear();}
     });
     controller._onDismissOverlay(() {
       _shouldHideOverlay(true);
@@ -1098,118 +1100,6 @@ class FlutterTaggerController extends TextEditingController {
     );
   }
 
-
-  // @override
-  // TextSpan buildTextSpan({
-  //   required BuildContext context,
-  //   TextStyle? style,
-  //   required bool withComposing,
-  // }) {
-  //   assert(!value.composing.isValid ||
-  //       !withComposing ||
-  //       value.isComposingRangeValid);
-
-  //   return _buildTextSpan(style);
-  // }
-
-  ///Parses [text] and styles nested tagged texts using style from [_tagStyles].
-  List<TextSpan> _getNestedSpans(String text, int startIndex) {
-    if (text.isEmpty) return [];
-
-    List<TextSpan> spans = [];
-    int start = startIndex;
-
-    final nestedWords = text.splitWithDelim(_triggerCharactersPattern);
-    bool startsWithTrigger = text[0].contains(_triggerCharactersPattern) &&
-        nestedWords.first.isNotEmpty;
-
-    String triggerChar = "";
-    int triggerCharIndex = 0;
-
-    for (int i = 0; i < nestedWords.length; i++) {
-      final nestedWord = nestedWords[i];
-
-      if (nestedWord.contains(_triggerCharactersPattern)) {
-        if (triggerChar.isNotEmpty && triggerCharIndex == i - 2) {
-          spans.add(TextSpan(text: triggerChar));
-          start += triggerChar.length;
-          triggerChar = "";
-          triggerCharIndex = i;
-          continue;
-        }
-        triggerChar = nestedWord;
-        triggerCharIndex = i;
-        continue;
-      }
-
-      String word;
-      if (i == 0) {
-        word = startsWithTrigger ? "$triggerChar$nestedWord" : nestedWord;
-      } else {
-        word = "$triggerChar$nestedWord";
-      }
-
-      TaggedText? taggedText;
-
-      if (word.isNotEmpty) {
-        taggedText = _trie.search(word, start);
-      }
-
-      if (taggedText == null) {
-        spans.add(TextSpan(text: word));
-      } else if (taggedText.startIndex == start) {
-        String suffix = word.substring(taggedText.text.length);
-
-        spans.add(
-          TextSpan(
-            text: taggedText.text,
-            style: _tagStyle
-          ),
-        );
-        if (suffix.isNotEmpty) spans.add(TextSpan(text: suffix));
-      } else {
-        spans.add(TextSpan(text: word));
-      }
-
-      start += word.length;
-      triggerChar = "";
-    }
-
-    return spans;
-  }
-
-  ///Builds text value with tagged texts styled using styles from [_tagStyles].
-  // TextSpan _buildTextSpan(TextStyle? style) {
-  //   if (text.isEmpty) return const TextSpan();
-
-  //   final splitText = text.split(" ");
-
-  //   List<TextSpan> spans = [];
-  //   int start = 0;
-  //   int end = splitText.first.length;
-
-  //   for (int i = 0; i < splitText.length; i++) {
-  //     final currentText = splitText[i];
-
-  //     if (currentText.contains(_triggerCharactersPattern)) {
-  //       final nestedSpans = _getNestedSpans(currentText, start);
-  //       spans.addAll(nestedSpans);
-  //       spans.add(const TextSpan(text: " "));
-
-  //       start = end + 1;
-  //       if (i + 1 < splitText.length) {
-  //         end = start + splitText[i + 1].length;
-  //       }
-  //     } else {
-  //       start = end + 1;
-  //       if (i + 1 < splitText.length) {
-  //         end = start + splitText[i + 1].length;
-  //       }
-  //       spans.add(TextSpan(text: "$currentText "));
-  //     }
-  //   }
-  //   return TextSpan(children: spans, style: style);
-  // }
 }
 
 extension _RegExpExtension on RegExp {
